@@ -1,7 +1,10 @@
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from analysis import service
+
+logger = logging.getLogger(__name__)
 
 
 class MakeQuery(APIView):
@@ -9,6 +12,7 @@ class MakeQuery(APIView):
 
     def post(self, request, *args, **kwargs):
         user_query = request.data.get("query", "")
+
         if not user_query:
             return Response(
                 {"error": "query parameter is required"},

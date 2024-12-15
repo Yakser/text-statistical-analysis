@@ -6,13 +6,14 @@ from .models import Query, ServiceWord, Word, SynonymGroup
 
 logger = logging.getLogger(__name__)
 
-TRESHOLD = 0.75
+TRESHOLD = 0.5
 
 
-def clean_text(text):
+def clean_text(text: str) -> list[str]:
     """
     Удаляет знаки пунктуации из текста и разбивает на слова.
     """
+
     translator = str.maketrans("", "", string.punctuation)
     return text.translate(translator).lower().split()
 
@@ -20,15 +21,13 @@ def clean_text(text):
 def find_synonyms(word: str) -> set[str]:
     try:
         group = Word.objects.get(text=word).group
-        synonyms = set(
-            group.words.values_list("text", flat=True)
-        )  # Извлекаем все слова из этой группы
+        synonyms = set(group.words.values_list("text", flat=True))
         return synonyms - {word}
     except Word.DoesNotExist:
         return set()
 
 
-def add_word_to_group(word: str, group_name: str):
+def add_word_to_group(word: str, group_name: str) -> None:
     group, created = SynonymGroup.objects.get_or_create(name=group_name)
 
     if not Word.objects.filter(text=word).exists():
@@ -36,10 +35,6 @@ def add_word_to_group(word: str, group_name: str):
 
 
 def generate_synonym_queries(query: list[str]) -> list[list[str]]:
-    """
-    Генерирует запросы из синонимов на основе списка слов.
-    """
-
     synonym_queries = [query]
     for i, word in enumerate(query):
         synonyms = find_synonyms(word)
@@ -51,9 +46,6 @@ def generate_synonym_queries(query: list[str]) -> list[list[str]]:
 
 
 def compare_queries(user_query: list[str], query_from_db: list[str]) -> float:
-    """
-    Сравнивает два запроса и возвращает процент соответствия.
-    """
     return SequenceMatcher(None, " ".join(user_query), " ".join(query_from_db)).ratio()
 
 
@@ -114,9 +106,12 @@ def process_user_query(user_input):
     logger.info(f"Processing query: {user_input}")
 
     cleaned_words = clean_text(user_input)
-    original_words_count = len(cleaned_words)
+    logger.info(f"Cleaned words: {cleaned_words}")
     words_wo_service = remove_service_words(cleaned_words)
+    logger.info(f"Remove service words: {words_wo_service}")
+    original_words_count = len(words_wo_service)
     potential_queries = generate_synonym_queries(words_wo_service)
+    logger.info(f"Generate potentional queries: {potential_queries}")
 
     queries_from_db = Query.objects.all()
     best_match = None
@@ -124,7 +119,7 @@ def process_user_query(user_input):
 
     for pq in potential_queries:
         for query in queries_from_db:
-            cleaned_db_query = clean_text(query.text)
+            cleaned_db_query = remove_service_words(clean_text(query.text))
 
             if len(cleaned_db_query) == original_words_count:
                 score = compare_queries(pq, cleaned_db_query)
@@ -133,10 +128,10 @@ def process_user_query(user_input):
                     best_match = query
 
     if best_match and best_score >= TRESHOLD:
-        db_query_words = clean_text(best_match.text)
+        db_query_words = remove_service_words(clean_text(best_match.text))
 
-        if len(cleaned_words) == len(db_query_words):
-            save_differences_as_synonyms(cleaned_words, db_query_words)
+        if len(words_wo_service) == len(db_query_words):
+            save_differences_as_synonyms(words_wo_service, db_query_words)
 
         return {"response": best_match.response, "score": best_score}
 
