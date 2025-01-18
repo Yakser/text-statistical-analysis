@@ -6,7 +6,7 @@ from .models import Query, ServiceWord, Word, SynonymGroup
 
 logger = logging.getLogger(__name__)
 
-TRESHOLD = 0.5
+THRESHOLD = 0.5
 
 
 def clean_text(text: str) -> list[str]:
@@ -127,7 +127,7 @@ def process_user_query(user_input):
                     best_score = score
                     best_match = query
 
-    if best_match and best_score >= TRESHOLD:
+    if best_match and best_score >= THRESHOLD:
         db_query_words = remove_service_words(clean_text(best_match.text))
 
         if len(words_wo_service) == len(db_query_words):
